@@ -23,6 +23,7 @@ class Dirscan:
         self.last_timestamp = None  # 上一次使用的时间戳
         self.total_requests = 0
         self.lock = threading.Lock()
+        self.running = True  # 用于控制是否继续运行
         print()
 
     def expand_status_codes(self, status_codes):
@@ -46,7 +47,7 @@ class Dirscan:
             return random.choice(f.read().splitlines())
 
     def worker(self):
-        while True:
+        while self.running:
             url = self.get_next_url()
             if url is None:
                 break
@@ -56,10 +57,16 @@ class Dirscan:
     def scan_directory(self, url):
         url = url.rstrip("/")
         for directory in self.dictionary:
+            if not self.running:
+                break
+
             directory_url = f"{url}/{directory.lower()}/"
             self.scan_url(directory_url)
 
             for extension in self.extensions:
+                if not self.running:
+                    break
+
                 file_url = f"{url}/{directory.lower()}.{extension}"
                 self.scan_url(file_url)
 
@@ -83,15 +90,18 @@ class Dirscan:
                 color = "green" if status_code == 200 else "blue" if status_code == 302 else "yellow"
                 with self.lock:
                     if url not in self.scan_list:
-                        cprint(f"[+] Found: [{status_code}] [{content_length_formatted}] {url}", color)
-                        self.scan_list.append(url)
-                        self.results.append({
-                            "url": url,
-                            "status": status_code,
-                            "contentLength": content_length_formatted
-                        })
-                        self.save_html()
-                        self.save_datarecorder(url)
+                        if status_code == 403 and not url.endswith("/"):
+                            pass
+                        else:
+                            cprint(f"[+] Found: [{status_code}] [{content_length_formatted}] {url}", color)
+                            self.scan_list.append(url)
+                            self.results.append({
+                                "url": url,
+                                "status": status_code,
+                                "contentLength": content_length_formatted
+                            })
+                            self.save_html()
+                            self.save_datarecorder(url)
         except requests.exceptions.RequestException as e:
             # cprint(f"[-] Request Exception occurred for URL: {url}", "red")
             # print(e)
@@ -110,14 +120,18 @@ class Dirscan:
         for t in threads:
             t.start()
 
-        while any(thread.is_alive() for thread in threads):
-            time.sleep(0.1)
-            with self.lock:
-                total_requests = self.total_requests
-            print(f"\rTotal Requests: {total_requests}\r", end="")
+        try:
+            while any(thread.is_alive() for thread in threads):
+                time.sleep(0.1)
+                with self.lock:
+                    total_requests = self.total_requests
+                print(f"\rTotal Requests: {total_requests}\r", end="")
+        except KeyboardInterrupt:
+            self.running = False  # 捕获到CTRL+C后停止运行
+            print("Stopping the scan...")
 
         elapsed_time = time.time() - start_time
-        print(f"\nElapsed Time: {elapsed_time:.2f}s")
+        print(f"Elapsed Time: {elapsed_time:.2f}s")
 
     def save_html(self):
         parsed_url = urlparse(self.url)
@@ -159,18 +173,25 @@ def parser_cprint(threads, extensions,status_codes):
     cprint(f"Status Codes: {status_codes}", "yellow")
 
 def url_split(url):
-    if '.' in url:
-        url = url.rsplit('/', 1)[0]
-    return url
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme
+    netloc = parsed_url.netloc
+    path = parsed_url.path.strip("/")
+
+    if "." in path:
+        parent_paths = f"{scheme}://{netloc}"
+    else:
+        parent_paths = f"{scheme}://{netloc}/{path}"
+    return parent_paths
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--url", help="URL of the target website")
     parser.add_argument("-f", "--file", help="URLs.txt of the target website")
     parser.add_argument("-t", "--threads", type=int, default=20, help="Number of threads (default: %(default)s)")
-    parser.add_argument("-e", "--extensions", default="jsp,php,asp,aspx,zip,rar,7z,tar,tar.gz,bak,old",
+    parser.add_argument("-e", "--extensions", default="jsp,php,asp,aspx,zip,rar,7z,tar,tar.gz,bak,old,xlsx,xls,docx,doc",
                         help="Extensions to append to URLs (default: %(default)s)")
-    parser.add_argument("--status-codes", nargs="+", default=["200-399", "401", "403", "405"],
+    parser.add_argument("--status-codes", nargs="+", default=["200-301","303-399", "401", "403", "405"],
                         help="Allowed HTTP status codes (default: %(default)s)")
 
     args = parser.parse_args()
@@ -179,6 +200,7 @@ def main():
 
     if args.url:
         args.url = url_split(args.url)
+        print(args.url)
         parser_cprint(args.threads, extensions,status_codes)
         cprint(f"Target URL: {args.url}", "yellow")
         scanner = Dirscan(args.url, args.threads, extensions, status_codes)
