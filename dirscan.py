@@ -164,7 +164,7 @@ def url_split(url):
     return url
 
 def main():
-    parser = argparse.ArgumentParser(description="Multi-threaded web directory scanner")
+    parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--url", help="URL of the target website")
     parser.add_argument("-f", "--file", help="URLs.txt of the target website")
     parser.add_argument("-t", "--threads", type=int, default=20, help="Number of threads (default: %(default)s)")
@@ -201,4 +201,15 @@ def main():
 
 
 if __name__ == "__main__":
+    title = '''
+    _____   _   _____    _____   _____       ___   __   _  
+    |  _  \ | | |  _  \  /  ___/ /  ___|     /   | |  \ | | 
+    | | | | | | | |_| |  | |___  | |        / /| | |   \| | 
+    | | | | | | |  _  /  \___  \ | |       / / | | | |\   | 
+    | |_| | | | | | \ \   ___| | | |___   / /  | | | | \  | 
+    |_____/ |_| |_|  \_\ /_____/ \_____| /_/   |_| |_|  \_| 
+    by.Ninja
+    https://github.com/gh0stNinja/dirscan
+    '''
+    print(title)
     main()

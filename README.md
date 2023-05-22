@@ -40,7 +40,7 @@ optional arguments:
 python3 dirscan.py -u http://127.0.0.1 -e jsp,php,zip -t 10
 
 # 批量扫描url地址
-python3 dirscan.py -f url.txt -e jsp,php,zip -t 10
+python3 dirscan.py -f url.txt -e jsp,php,zip -t 10 --status-codes 200-302 403
 ```
 
 
